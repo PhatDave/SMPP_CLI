@@ -58,6 +58,13 @@ const centerOptions = [
 	{ name: "systemid", alias: "s", type: String, description: "SMPP related login info." },
 	{ name: "password", alias: "w", type: String, description: "SMPP related login info." },
 	{ name: "dr", type: Boolean, description: "Whether or not to send Delivery Reports.", defaultOption: false },
+	{ name: "sessions", type: Number, description: "Number of sessions to start, defaults to 1.", defaultOption: 1 },
+	{
+		name: "maxsessions",
+		type: Number,
+		description: "Maximum number of client sessions to accept, defaults to 8.",
+		defaultOption: 8,
+	},
 	{
 		name: "messagecount",
 		type: Number,

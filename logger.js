@@ -1,5 +1,5 @@
-const { createLogger, format, transports } = require('winston');
-const { combine, timestamp, printf } = format;
+const { createLogger, format, transports } = require("winston");
+const { combine, timestamp, label, printf } = format;
 
 const defaultFormat = printf(({ level, message, timestamp }) => {
 	return `${timestamp} ${level}: ${message}`;
@@ -13,9 +13,9 @@ function createBaseLogger() {
 		transports: [new transports.Console()],
 	});
 }
-function createSessionLogger(label) {
+function createSessionLogger(ilabel) {
 	return createLogger({
-		format: combine(label({ label: label }), format.colorize({ all: true }), timestamp(), sessionFormat),
+		format: combine(label({ label: ilabel }), format.colorize({ all: true }), timestamp(), sessionFormat),
 		transports: [new transports.Console()],
 	});
 }
