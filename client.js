@@ -5,11 +5,14 @@ const { createLogger, format, transports } = require("winston");
 const { combine, timestamp, label, printf } = format;
 const NanoTimer = require("nanotimer");
 
-const myFormat = printf(({ level, message, timestamp }) => {
+const defaultFormat = printf(({ level, message, timestamp }) => {
 	return `${timestamp} ${level}: ${message}`;
 });
+const sessionFormat = printf(({ level, message, label, timestamp }) => {
+	return `${timestamp} [Session ${label}] ${level}: ${message}`;
+});
 const logger = createLogger({
-	format: combine(format.colorize(), timestamp(), myFormat),
+	format: combine(format.colorize({ all: true }), timestamp(), defaultFormat),
 	transports: [new transports.Console()],
 });
 
@@ -35,6 +38,7 @@ const optionDefinitions = [
 	{ name: "port", alias: "p", type: Number, description: "The port to connect to." },
 	{ name: "systemid", alias: "s", type: String, description: "SMPP related login info." },
 	{ name: "password", alias: "w", type: String, description: "SMPP related login info." },
+	{ name: "sessions", type: Number, description: "Number of sessions to start, defaults to 1.", defaultOption: 1 },
 	{
 		name: "messagecount",
 		type: Number,
@@ -113,14 +117,14 @@ let success = 0;
 let failed = 0;
 const sendTimer = new NanoTimer();
 
-function startInterval(session) {
+function startInterval(session, sessionLogger) {
 	sendTimer.setInterval(
 		async () => {
 			if (sent >= options.messagecount) {
-				logger.info("Finished sending messages, idling...");
+				sessionLogger.info("Finished sending messages, idling...");
 				sendTimer.clearInterval();
 			} else if (inFlight < options.window) {
-				logger.info(`Sending message ${sent + 1}/${options.messagecount}`);
+				sessionLogger.info(`Sending message ${sent + 1}/${options.messagecount}`);
 				session.submit_sm(
 					{
 						source_addr: options.source,
@@ -130,10 +134,10 @@ function startInterval(session) {
 					function (pdu) {
 						inFlight--;
 						if (pdu.command_status === 0) {
-							logger.info(`Received response with id ${pdu.message_id}`);
+							sessionLogger.info(`Received response with id ${pdu.message_id}`);
 							success++;
 						} else {
-							logger.warn(`Message failed with id ${pdu.message_id}`);
+							sessionLogger.warn(`Message failed with id ${pdu.message_id}`);
 							failed++;
 						}
 					}
@@ -141,9 +145,11 @@ function startInterval(session) {
 				sent++;
 				inFlight++;
 			} else {
-				logger.warn(`${inFlight}/${options.window} messages pending, waiting for a reply before sending more`);
+				sessionLogger.warn(
+					`${inFlight}/${options.window} messages pending, waiting for a reply before sending more`
+				);
 				sendTimer.clearInterval();
-				setTimeout(() => startInterval(session), options.windowsleep);
+				setTimeout(() => startInterval(session, sessionLogger), options.windowsleep);
 			}
 		},
 		"",
@@ -151,37 +157,50 @@ function startInterval(session) {
 	);
 }
 
-logger.info(`Connecting to ${options.host}:${options.port}...`);
-const session = smpp.connect(
-	{
-		url: `smpp://${options.host}:${options.port}`,
-		auto_enquire_link_period: 10000,
-		debug: options.debug,
-	},
-	function () {
-		logger.info(
-			`Connected, sending bind_transciever with systemId '${options.systemid}' and password '${options.password}'...`
-		);
-		session.bind_transceiver(
-			{
-				system_id: options.systemid,
-				password: options.password,
-			},
-			function (pdu) {
-				if (pdu.command_status === 0) {
-					logger.info(
-						`Successfully bound, sending ${options.messagecount} messages '${options.source}'->'${options.destination}' ('${options.message}')`
-					);
-					startInterval(session);
+for (let i = 0; i < options.sessions; i++) {
+	const sessionLogger = createLogger({
+		format: combine(label({ label: i }), format.colorize({ all: true }), timestamp(), sessionFormat),
+		transports: [new transports.Console()],
+	});
+
+	sessionLogger.info(`Connecting to ${options.host}:${options.port}...`);
+	const session = smpp.connect(
+		{
+			url: `smpp://${options.host}:${options.port}`,
+			auto_enquire_link_period: 10000,
+			debug: options.debug,
+		},
+		function () {
+			sessionLogger.info(
+				`Connected, sending bind_transciever with systemId '${options.systemid}' and password '${options.password}'...`
+			);
+			session.bind_transceiver(
+				{
+					system_id: options.systemid,
+					password: options.password,
+				},
+				function (pdu) {
+					if (pdu.command_status === 0) {
+						sessionLogger.info(
+							`Successfully bound, sending ${options.messagecount} messages '${options.source}'->'${options.destination}' ('${options.message}')`
+						);
+						startInterval(session, sessionLogger);
+
+						session.on("deliver_sm", function (pdu) {
+							sessionLogger.info("Got deliver_sm, replying...");
+							session.send(pdu.response());
+						});
+						session.on("close", function () {
+							sessionLogger.error(`Session closed`);
+							process.exit(1);
+						});
+						session.on("error", function (err) {
+							sessionLogger.error(`Fatal error ${err}`);
+							process.exit(1);
+						});
+					}
 				}
-			}
-		);
-	}
-);
-
-session.on("deliver_sm", function (pdu) {
-	console.log("Got deliver_sm");
-	session.send(pdu.response());
-});
-
-// Proccess sigint messages
+			);
+		}
+	);
+}
