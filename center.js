@@ -37,6 +37,9 @@ let success = 0;
 let failed = 0;
 const sendTimer = new NanoTimer();
 
+// TODO: Fix issue where a client disconnecting does not stop this timer
+// TODO: Fix issue where only one session is being utilized because they all share the same timer
+// Instead just use the same timer but make a pool of connections; That way both problems will be solved
 function startInterval(session, sessionLogger) {
 	if (!options.messagecount > 0) {
 		sessionLogger.info("No messages to send");
@@ -168,7 +171,6 @@ server.on("error", function (err) {
 
 server.listen(options.port);
 logger.info(`SMPP Server listening on ${options.port}`);
-// const session = smpp.connect(
 // 	{
 // 		url: `smpp://${options.host}:${options.port}`,
 // 		auto_enquire_link_period: 10000,
