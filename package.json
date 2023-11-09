@@ -4,7 +4,11 @@
   "description": "",
   "main": "main.js",
   "scripts": {
-    "dev": "node main.js"
+    "build-linux-client": "nexe -i client.js -o out/client-linux -t linux-x64-18.18.2",
+    "build-windows-client": "nexe -i client.js -o out/client-windows -t windows-x86-18.18.2",
+    "build-linux-server": "nexe -i server.js -o out/server-linux -t linux-x64-18.18.2",
+    "build-windows-server": "nexe -i server.js -o out/server-windows -t windows-x86-18.18.2",
+    "build": "sh build.sh"
   },
   "keywords": [],
   "author": "",
