@@ -1,92 +1,13 @@
 const smpp = require("smpp");
 const commandLineArgs = require("command-line-args");
 const commandLineUsage = require("command-line-usage");
-const { createLogger, format, transports } = require("winston");
-const { combine, timestamp, label, printf } = format;
 const NanoTimer = require("nanotimer");
+const { createBaseLogger, createSessionLogger } = require("./logger");
+const { verifyDefaults, verifyExists } = require("./utils");
+const { clientOptions } = require("./cliOptions");
 
-const defaultFormat = printf(({ level, message, timestamp }) => {
-	return `${timestamp} ${level}: ${message}`;
-});
-const sessionFormat = printf(({ level, message, label, timestamp }) => {
-	return `${timestamp} [Session ${label}] ${level}: ${message}`;
-});
-const logger = createLogger({
-	format: combine(format.colorize({ all: true }), timestamp(), defaultFormat),
-	transports: [new transports.Console()],
-});
-
-function verifyExists(value, err) {
-	if (!value) {
-		logger.error(err);
-		process.exit(0);
-	}
-}
-function verifyDefaults(options) {
-	for (const optionDefinition of optionDefinitions) {
-		if (optionDefinition.defaultOption) {
-			if (!options[optionDefinition.name]) {
-				options[optionDefinition.name] = optionDefinition.defaultOption;
-			}
-		}
-	}
-}
-
-const optionDefinitions = [
-	{ name: "help", type: Boolean, description: "Display this usage guide." },
-	{ name: "host", alias: "h", type: String, description: "The host (IP) to connect to." },
-	{ name: "port", alias: "p", type: Number, description: "The port to connect to." },
-	{ name: "systemid", alias: "s", type: String, description: "SMPP related login info." },
-	{ name: "password", alias: "w", type: String, description: "SMPP related login info." },
-	{ name: "sessions", type: Number, description: "Number of sessions to start, defaults to 1.", defaultOption: 1 },
-	{
-		name: "messagecount",
-		type: Number,
-		description: "Number of messages to send; Optional, defaults to 1.",
-		defaultOption: 1,
-	},
-	{
-		name: "window",
-		type: Number,
-		description:
-			"Defines the amount of messages that are allowed to be 'in flight'. The client no longer waits for a response before sending the next message for up to <window> messages. Defaults to 100.",
-		defaultOption: 100,
-	},
-	{
-		name: "windowsleep",
-		type: Number,
-		description:
-			"Defines the amount time (in ms) waited between retrying in the case of full window. Defaults to 100.",
-		defaultOption: 100,
-	},
-	{
-		name: "mps",
-		type: Number,
-		description: "Number of messages to send per second",
-		defaultOption: 999999,
-	},
-	{
-		name: "source",
-		type: String,
-		description: "Source field of the sent messages.",
-		defaultOption: "smppDebugClient",
-	},
-	{
-		name: "destination",
-		type: String,
-		description: "Destination field of the sent messages.",
-		defaultOption: "smpp",
-	},
-	{
-		name: "message",
-		type: String,
-		description: "Text content of the sent messages.",
-		defaultOption: "smpp debug message",
-	},
-	{ name: "debug", type: Boolean, description: "Display all traffic to and from the client; Debug mode." },
-];
-
-const options = commandLineArgs(optionDefinitions);
+const logger = createBaseLogger();
+const options = commandLineArgs(clientOptions);
 
 if (options.help) {
 	const usage = commandLineUsage([
@@ -95,7 +16,7 @@ if (options.help) {
 		},
 		{
 			header: "Options",
-			optionList: optionDefinitions,
+			optionList: clientOptions,
 		},
 		{
 			content: "Project home: {underline https://github.com/PhatDave/SMPP_CLI}",
@@ -105,11 +26,11 @@ if (options.help) {
 	process.exit(0);
 }
 
-verifyDefaults(options);
-verifyExists(options.host, "Host can not be undefined or empty! (--host)");
-verifyExists(options.port, "Port can not be undefined or empty! (--port)");
-verifyExists(options.systemid, "SystemID can not be undefined or empty! (--systemid)");
-verifyExists(options.password, "Password can not be undefined or empty! (--password)");
+verifyDefaults(options, clientOptions);
+verifyExists(options.host, "Host can not be undefined or empty! (--host)", logger);
+verifyExists(options.port, "Port can not be undefined or empty! (--port)", logger);
+verifyExists(options.systemid, "SystemID can not be undefined or empty! (--systemid)", logger);
+verifyExists(options.password, "Password can not be undefined or empty! (--password)", logger);
 
 let inFlight = 0;
 let sent = 0;
@@ -121,7 +42,7 @@ function startInterval(session, sessionLogger) {
 	sendTimer.setInterval(
 		async () => {
 			if (sent >= options.messagecount) {
-				sessionLogger.info("Finished sending messages, idling...");
+				logger.info(`Finished sending messages success:${success}, failed:${failed}, idling...`);
 				sendTimer.clearInterval();
 			} else if (inFlight < options.window) {
 				sessionLogger.info(`Sending message ${sent + 1}/${options.messagecount}`);
@@ -158,11 +79,7 @@ function startInterval(session, sessionLogger) {
 }
 
 for (let i = 0; i < options.sessions; i++) {
-	const sessionLogger = createLogger({
-		format: combine(label({ label: i }), format.colorize({ all: true }), timestamp(), sessionFormat),
-		transports: [new transports.Console()],
-	});
-
+	const sessionLogger = createSessionLogger(i);
 	sessionLogger.info(`Connecting to ${options.host}:${options.port}...`);
 	const session = smpp.connect(
 		{
