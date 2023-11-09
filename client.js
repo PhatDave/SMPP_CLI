@@ -3,6 +3,7 @@ const commandLineArgs = require("command-line-args");
 const commandLineUsage = require("command-line-usage");
 const { createLogger, format, transports } = require("winston");
 const { combine, timestamp, label, printf } = format;
+const NanoTimer = require("nanotimer");
 
 const myFormat = printf(({ level, message, timestamp }) => {
 	return `${timestamp} ${level}: ${message}`;
@@ -19,6 +20,15 @@ function verifyExists(value, err) {
 		process.exit(0);
 	}
 }
+function verifyDefaults(options) {
+	for (const optionDefinition of optionDefinitions) {
+		if (optionDefinition.defaultOption) {
+			if (!options[optionDefinition.name]) {
+				options[optionDefinition.name] = optionDefinition.defaultOption;
+			}
+		}
+	}
+}
 
 const optionDefinitions = [
 	{ name: "help", type: Boolean, description: "Display this usage guide." },
@@ -31,6 +41,12 @@ const optionDefinitions = [
 		type: Number,
 		description: "Number of messages to send; Optional, defaults to 1.",
 		defaultOption: 1,
+	},
+	{
+		name: "mps",
+		type: Number,
+		description: "Number of messages to send per second",
+		defaultOption: 999999,
 	},
 	{
 		name: "source",
@@ -72,12 +88,16 @@ if (options.help) {
 	process.exit(0);
 }
 
+verifyDefaults(options);
 verifyExists(options.host, "Host can not be undefined or empty! (--host)");
 verifyExists(options.port, "Port can not be undefined or empty! (--port)");
 verifyExists(options.systemId, "SystemID can not be undefined or empty! (--systemId)");
 verifyExists(options.password, "Password can not be undefined or empty! (--password)");
 
-let message_id = 0;
+let sent = 0;
+let success = 0;
+let failed = 0;
+const sendTimer = new NanoTimer();
 logger.info(`Connecting to ${options.host}:${options.port}...`);
 const session = smpp.connect(
 	{
@@ -99,20 +119,35 @@ const session = smpp.connect(
 					logger.info(
 						`Successfully bound, sending ${options.messageCount} messages '${options.source}'->'${options.destination}' ('${options.message}')`
 					);
-					// session.submit_sm(
-					// 	{
-					// 		source_addr: "smpp_test_1",
-					// 		destination_addr: "123123123123",
-					// 		short_message: "Hello!",
-					// 		data_coding: 0xc0,
-					// 	},
-					// 	function (pdu) {
-					// 		if (pdu.command_status === 0) {
-					// 			console.log(pdu.message_id);
-					// 			message_id = pdu.message_id;
-					// 		}
-					// 	}
-					// );
+					sendTimer.setInterval(
+						() => {
+							if (sent >= options.messageCount) {
+								logger.info("Finished sending messages, idling...");
+								sendTimer.clearInterval();
+							} else {
+								logger.info(`Sending message ${sent + 1}/${options.messageCount}`);
+								session.submit_sm(
+									{
+										source_addr: options.source,
+										destination_addr: options.destination,
+										short_message: options.message,
+									},
+									function (pdu) {
+										if (pdu.command_status === 0) {
+											logger.info(`Received response with id ${pdu.message_id}`);
+											success++;
+										} else {
+											logger.warn(`Message failed with id ${pdu.message_id}`);
+											failed++;
+										}
+									}
+								);
+								sent++;
+							}
+						},
+						"",
+						`1000/${options.mps} ms`
+					);
 				}
 			}
 		);
@@ -123,3 +158,5 @@ session.on("deliver_sm", function (pdu) {
 	console.log("Got deliver_sm");
 	session.send(pdu.response());
 });
+
+// Proccess sigint messages
