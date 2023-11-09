@@ -37,15 +37,15 @@ let success = 0;
 let failed = 0;
 const sendTimer = new NanoTimer();
 
-function startInterval(session) {
+function startInterval(session, sessionLogger) {
 	sendTimer.setInterval(
 		async () => {
 			if (sent >= options.messagecount) {
 				logger.info(`Finished sending messages success:${success}, failed:${failed}, idling...`);
 				sendTimer.clearInterval();
 			} else if (inFlight < options.window) {
-				logger.info(`Sending message ${sent + 1}/${options.messagecount}`);
-				session.submit_sm(
+				sessionLogger.info(`Sending message ${sent + 1}/${options.messagecount}`);
+				session.deliver_sm(
 					{
 						source_addr: options.source,
 						destination_addr: options.destination,
@@ -54,10 +54,10 @@ function startInterval(session) {
 					function (pdu) {
 						inFlight--;
 						if (pdu.command_status === 0) {
-							logger.info(`Received response with id ${pdu.message_id}`);
+							sessionLogger.info(`Received response with id ${pdu.message_id}`);
 							success++;
 						} else {
-							logger.warn(`Message failed with id ${pdu.message_id}`);
+							sessionLogger.warn(`Message failed with id ${pdu.message_id}`);
 							failed++;
 						}
 					}
@@ -65,9 +65,11 @@ function startInterval(session) {
 				sent++;
 				inFlight++;
 			} else {
-				logger.warn(`${inFlight}/${options.window} messages pending, waiting for a reply before sending more`);
+				sessionLogger.warn(
+					`${inFlight}/${options.window} messages pending, waiting for a reply before sending more`
+				);
 				sendTimer.clearInterval();
-				setTimeout(() => startInterval(session), options.windowsleep);
+				setTimeout(() => startInterval(session, sessionLogger), options.windowsleep);
 			}
 		},
 		"",
@@ -76,7 +78,6 @@ function startInterval(session) {
 }
 
 logger.info(`Staring server on port ${options.port}...`);
-let sessions = {};
 let sessionid = 1;
 let messageid = 0;
 const server = smpp.createServer(
@@ -88,9 +89,9 @@ const server = smpp.createServer(
 
 		session.on("bind_transceiver", function (pdu) {
 			if (pdu.system_id === options.systemid && pdu.password === options.password) {
-				// sessions[session] = true;
 				sessionLogger.info("Client connected");
 				session.send(pdu.response());
+				startInterval(session, sessionLogger);
 			} else {
 				sessionLogger.warn(
 					`Client tried to connect with incorrect login ('${pdu.system_id}' '${pdu.password}'`
@@ -146,18 +147,16 @@ const server = smpp.createServer(
 
 		session.on("close", function () {
 			sessionLogger.warn(`Session closed`);
-			delete sessions[sessions];
 			session.close();
 		});
 		session.on("error", function (err) {
 			sessionLogger.error(`Fatal error ${err}`);
-			delete sessions[sessions];
 			session.close();
 		});
 	}
 );
 
-server.on('error', function(err) {
+server.on("error", function (err) {
 	logger.error(`Fatal server error ${err}`);
 	server.close();
 	process.exit(1);
