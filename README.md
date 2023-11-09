@@ -57,5 +57,56 @@ Options
   --message string        Text content of the sent messages.
   --debug                 Display all traffic to and from the center; Debug
                           mode.
-```						  
+```
+---
+#### Center example usage:
+```
+./center-win.exe \
+--port 7001 \
+--systemid test \
+--password test \
+--sessions 10
+```
+Running this command will spawn an SMPP center (SMSC) which will:
+- Start listening on 7001
+- Accept clients with test:test credentials
+- Allow up to a maximum of 10 sessions
+#### Client example usage:
+```
+./client-win.exe \
+--host localhost \
+--port 7001 \
+--systemid test \
+--password test \
+--window 5 \
+--windowsleep 100 \
+--messagecount 10000 \
+--mps 10 \
+--sessions 10
+```
+Running this command will spawn an SMPP client (ESME) which will:
+- Try to connect 10 sessions to localhost:7001
+- Once connected try to bind using test:test
+- Once bound send 10000 messages at a rate of 10 per second and a window size of 5
+- If the window is filled during sending the session will wait 100ms before attempting send again
+---
+---
+#### Center example usage (sending):
+```
+./center-win.exe \
+--port 7001 \
+--systemid test \
+--password test \
+--window 5 \
+--windowsleep 100 \
+--messagecount 10000 \
+--mps 10 \
+--sessions 10
+```
+Running this command will spawn an SMPP center (SMSC) which will:
+- Start listening on 7001
+- Accept clients with test:test credentials
+- Allow up to a maximum of 10 sessions
+- Once a client is connected start sending 10000 messages at a rate of 10 per second with a window size of 5
+- If the window is filled during sending the session will wait 100ms before attempting send again
 ---
