@@ -42,7 +42,7 @@ function startInterval(session, sessionLogger) {
 	sendTimer.setInterval(
 		async () => {
 			if (sent >= options.messagecount) {
-				logger.info(`Finished sending messages success:${success}, failed:${failed}, idling...`);
+				sessionLogger.info(`Finished sending messages success:${success}, failed:${failed}, idling...`);
 				sendTimer.clearInterval();
 			} else if (inFlight < options.window) {
 				sessionLogger.info(`Sending message ${sent + 1}/${options.messagecount}`);
