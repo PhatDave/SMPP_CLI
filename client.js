@@ -8,7 +8,6 @@ const NanoTimer = require("nanotimer");
 const myFormat = printf(({ level, message, timestamp }) => {
 	return `${timestamp} ${level}: ${message}`;
 });
-
 const logger = createLogger({
 	format: combine(format.colorize(), timestamp(), myFormat),
 	transports: [new transports.Console()],
@@ -34,13 +33,27 @@ const optionDefinitions = [
 	{ name: "help", type: Boolean, description: "Display this usage guide." },
 	{ name: "host", alias: "h", type: String, description: "The host (IP) to connect to." },
 	{ name: "port", alias: "p", type: Number, description: "The port to connect to." },
-	{ name: "systemId", alias: "s", type: String, description: "SMPP related login info." },
+	{ name: "systemid", alias: "s", type: String, description: "SMPP related login info." },
 	{ name: "password", alias: "w", type: String, description: "SMPP related login info." },
 	{
-		name: "messageCount",
+		name: "messagecount",
 		type: Number,
 		description: "Number of messages to send; Optional, defaults to 1.",
 		defaultOption: 1,
+	},
+	{
+		name: "window",
+		type: Number,
+		description:
+			"Defines the amount of messages that are allowed to be 'in flight'. The client no longer waits for a response before sending the next message for up to <window> messages. Defaults to 100.",
+		defaultOption: 100,
+	},
+	{
+		name: "windowsleep",
+		type: Number,
+		description:
+			"Defines the amount time (in ms) waited between retrying in the case of full window. Defaults to 100.",
+		defaultOption: 100,
 	},
 	{
 		name: "mps",
@@ -91,13 +104,53 @@ if (options.help) {
 verifyDefaults(options);
 verifyExists(options.host, "Host can not be undefined or empty! (--host)");
 verifyExists(options.port, "Port can not be undefined or empty! (--port)");
-verifyExists(options.systemId, "SystemID can not be undefined or empty! (--systemId)");
+verifyExists(options.systemid, "SystemID can not be undefined or empty! (--systemid)");
 verifyExists(options.password, "Password can not be undefined or empty! (--password)");
 
+let inFlight = 0;
 let sent = 0;
 let success = 0;
 let failed = 0;
 const sendTimer = new NanoTimer();
+
+function startInterval(session) {
+	sendTimer.setInterval(
+		async () => {
+			if (sent >= options.messagecount) {
+				logger.info("Finished sending messages, idling...");
+				sendTimer.clearInterval();
+			} else if (inFlight < options.window) {
+				logger.info(`Sending message ${sent + 1}/${options.messagecount}`);
+				session.submit_sm(
+					{
+						source_addr: options.source,
+						destination_addr: options.destination,
+						short_message: options.message,
+					},
+					function (pdu) {
+						inFlight--;
+						if (pdu.command_status === 0) {
+							logger.info(`Received response with id ${pdu.message_id}`);
+							success++;
+						} else {
+							logger.warn(`Message failed with id ${pdu.message_id}`);
+							failed++;
+						}
+					}
+				);
+				sent++;
+				inFlight++;
+			} else {
+				logger.warn(`${inFlight}/${options.window} messages pending, waiting for a reply before sending more`);
+				sendTimer.clearInterval();
+				setTimeout(() => startInterval(session), options.windowsleep);
+			}
+		},
+		"",
+		`${1 / options.mps} s`
+	);
+}
+
 logger.info(`Connecting to ${options.host}:${options.port}...`);
 const session = smpp.connect(
 	{
@@ -107,47 +160,19 @@ const session = smpp.connect(
 	},
 	function () {
 		logger.info(
-			`Connected, sending bind_transciever with systemId '${options.systemId}' and password '${options.password}'...`
+			`Connected, sending bind_transciever with systemId '${options.systemid}' and password '${options.password}'...`
 		);
 		session.bind_transceiver(
 			{
-				system_id: options.systemId,
+				system_id: options.systemid,
 				password: options.password,
 			},
 			function (pdu) {
 				if (pdu.command_status === 0) {
 					logger.info(
-						`Successfully bound, sending ${options.messageCount} messages '${options.source}'->'${options.destination}' ('${options.message}')`
+						`Successfully bound, sending ${options.messagecount} messages '${options.source}'->'${options.destination}' ('${options.message}')`
 					);
-					sendTimer.setInterval(
-						() => {
-							if (sent >= options.messageCount) {
-								logger.info("Finished sending messages, idling...");
-								sendTimer.clearInterval();
-							} else {
-								logger.info(`Sending message ${sent + 1}/${options.messageCount}`);
-								session.submit_sm(
-									{
-										source_addr: options.source,
-										destination_addr: options.destination,
-										short_message: options.message,
-									},
-									function (pdu) {
-										if (pdu.command_status === 0) {
-											logger.info(`Received response with id ${pdu.message_id}`);
-											success++;
-										} else {
-											logger.warn(`Message failed with id ${pdu.message_id}`);
-											failed++;
-										}
-									}
-								);
-								sent++;
-							}
-						},
-						"",
-						`${1 / options.mps} s`
-					);
+					startInterval(session);
 				}
 			}
 		);
