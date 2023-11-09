@@ -102,9 +102,13 @@ for (let i = 0; i < options.sessions; i++) {
 							`Successfully bound, sending ${options.messagecount} messages '${options.source}'->'${options.destination}' ('${options.message}')`
 						);
 						startInterval(session, sessionLogger);
+						// TODO: Add error message for invalid systemid and password
 
 						session.on("deliver_sm", function (pdu) {
 							sessionLogger.info("Got deliver_sm, replying...");
+							session.send(pdu.response());
+						});
+						session.on("enquire_link", function (pdu) {
 							session.send(pdu.response());
 						});
 						session.on("close", function () {
