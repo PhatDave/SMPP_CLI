@@ -5,6 +5,7 @@ const NanoTimer = require("nanotimer");
 const { createBaseLogger, createSessionLogger } = require("./logger");
 const { verifyDefaults, verifyExists } = require("./utils");
 const { centerOptions } = require("./cliOptions");
+const crypto = require("crypto");
 
 const logger = createBaseLogger();
 const options = commandLineArgs(centerOptions);
@@ -121,7 +122,13 @@ const server = smpp.createServer(
 
 			sessionLogger.info("Generating DR for incoming submit_sm");
 			let response = pdu.response();
-			response.message_id = (messageid++).toString(16);
+
+			let smppid = messageid++;
+			if (options.randid) {
+				smppid = crypto.randomBytes(12).toString("hex");
+			}
+
+			response.message_id = smppid.toString(16);
 			session.send(response);
 
 			let drMessage = "";
@@ -143,8 +150,8 @@ const server = smpp.createServer(
 			drMessage += "text:";
 
 			const DRPdu = {
-				source_addr: pdu.source_addr,
-				destination_addr: pdu.destination_addr,
+				source_addr: pdu.destination_addr,
+				destination_addr: pdu.source_addr,
 				short_message: drMessage,
 				esm_class: 4,
 			};

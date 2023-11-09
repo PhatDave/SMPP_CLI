@@ -59,6 +59,12 @@ const centerOptions = [
 	{ name: "password", alias: "w", type: String, description: "SMPP related login info." },
 	{ name: "dr", type: Boolean, description: "Whether or not to send Delivery Reports.", defaultOption: false },
 	{
+		name: "randid",
+		type: Boolean,
+		description: "SMPP ID generation is entirely random instead of sequential.",
+		defaultOption: false,
+	},
+	{
 		name: "sessions",
 		type: Number,
 		description: "Maximum number of client sessions to accept, defaults to 8.",
