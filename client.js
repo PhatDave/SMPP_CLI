@@ -146,7 +146,7 @@ const session = smpp.connect(
 							}
 						},
 						"",
-						`1000/${options.mps} ms`
+						`${1 / options.mps} s`
 					);
 				}
 			}
