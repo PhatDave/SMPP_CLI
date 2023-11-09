@@ -1,3 +1,4 @@
+rm out/*
 for file in client center; 
 do 
 # 	for target in windows linux
