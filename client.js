@@ -5,6 +5,7 @@ const NanoTimer = require("nanotimer");
 const { createBaseLogger, createSessionLogger } = require("./logger");
 const { verifyDefaults, verifyExists } = require("./utils");
 const { clientOptions } = require("./cliOptions");
+const { MetricManager } = require("./metrics/metricManager");
 
 const logger = createBaseLogger();
 const options = commandLineArgs(clientOptions);
@@ -78,6 +79,17 @@ function startInterval(session, sessionLogger) {
 	);
 }
 
+const metricManager = new MetricManager();
+// async function main() {
+// 	const test1 = metricManager.AddMetrics("test");
+// 	for (let i = 0; i < 1e5; i++) {
+// 		test1.AddEvent();
+// 		test1.UpdateBar();
+// 		await setTimeout(() => {}, 200);
+// 	}
+// }
+// main();
+
 for (let i = 0; i < options.sessions; i++) {
 	const sessionLogger = createSessionLogger(i);
 	sessionLogger.info(`Connecting to ${options.host}:${options.port}...`);
@@ -101,12 +113,20 @@ for (let i = 0; i < options.sessions; i++) {
 						sessionLogger.info(
 							`Successfully bound, sending ${options.messagecount} messages '${options.source}'->'${options.destination}' ('${options.message}')`
 						);
+						const rxMetrics = metricManager.AddMetrics(`Session-${i}-RX`);
+						const txMetrics = metricManager.AddMetrics(`Session-${i}-TX`);
 						startInterval(session, sessionLogger);
 						// TODO: Add error message for invalid systemid and password
 
 						session.on("deliver_sm", function (pdu) {
-							sessionLogger.info("Got deliver_sm, replying...");
-							session.send(pdu.response());
+							rxMetrics.AddEvent();
+							// sessionLogger.info("Got deliver_sm, replying...");
+							setTimeout(() => {
+								session.send(pdu.response());
+								txMetrics.AddEvent();
+							}, 2000);
+							// session.send(pdu.response());
+							// txMetrics.AddEvent();
 						});
 						session.on("enquire_link", function (pdu) {
 							session.send(pdu.response());
