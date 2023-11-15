@@ -1,13 +1,15 @@
 const { CircularBuffer } = require("./circularBuffer");
 
 class Metric {
-	constructor(barName, multibar, bufferSize) {
+	constructor(barName, multibar, bufferSize, refresh = true) {
 		this.multibar = multibar;
-		this.pbar = multibar.create(0, 0);
-		this.pbar.update(0, { name: barName });
+		this.bar = multibar.create(0, 0);
+		this.bar.update(0, { name: barName });
 		this.buffer = new CircularBuffer(bufferSize);
 		this.maxRate = 0;
-		setInterval(this.UpdateBar.bind(this), 100);
+		if (refresh) {
+			setInterval(this.UpdateBar.bind(this), 100);
+		}
 	}
 
 	AddEvent() {
@@ -28,11 +30,10 @@ class Metric {
 	UpdateBar() {
 		const eps = this.GetRate();
 		if (eps > this.maxRate) {
-			this.pbar.total = eps;
+			this.bar.total = eps;
 			this.maxRate = eps;
 		}
-		this.pbar.update(eps);
-		this.multibar.update();
+		this.bar.update(eps);
 	}
 }
 

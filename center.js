@@ -6,6 +6,7 @@ const { createBaseLogger, createSessionLogger } = require("./logger");
 const { verifyDefaults, verifyExists } = require("./utils");
 const { centerOptions } = require("./cliOptions");
 const crypto = require("crypto");
+const { MetricManager } = require("./metrics/metricManager");
 
 const logger = createBaseLogger();
 const options = commandLineArgs(centerOptions);
@@ -27,6 +28,8 @@ if (options.help) {
 	process.exit(0);
 }
 
+const metricManager = new MetricManager();
+
 verifyDefaults(options, centerOptions);
 verifyExists(options.port, "Port can not be undefined or empty! (--port)", logger);
 verifyExists(options.systemid, "SystemID can not be undefined or empty! (--systemid)", logger);
@@ -41,7 +44,7 @@ const sendTimer = new NanoTimer();
 // TODO: Fix issue where a client disconnecting does not stop this timer
 // TODO: Fix issue where only one session is being utilized because they all share the same timer
 // Instead just use the same timer but make a pool of connections; That way both problems will be solved
-function startInterval(session, sessionLogger) {
+function startInterval(session, sessionLogger, rxMetrics) {
 	if (!options.messagecount > 0) {
 		sessionLogger.info("No messages to send");
 		return;
@@ -49,10 +52,10 @@ function startInterval(session, sessionLogger) {
 	sendTimer.setInterval(
 		async () => {
 			if (sent >= options.messagecount) {
-				sessionLogger.info(`Finished sending messages success:${success}, failed:${failed}, idling...`);
+				// sessionLogger.info(`Finished sending messages success:${success}, failed:${failed}, idling...`);
 				sendTimer.clearInterval();
 			} else if (inFlight < options.window) {
-				sessionLogger.info(`Sending message ${sent + 1}/${options.messagecount}`);
+				// sessionLogger.info(`Sending message ${sent + 1}/${options.messagecount}`);
 				session.deliver_sm(
 					{
 						source_addr: options.source,
@@ -62,7 +65,7 @@ function startInterval(session, sessionLogger) {
 					function (pdu) {
 						inFlight--;
 						if (pdu.command_status === 0) {
-							sessionLogger.info(`Received response with id ${pdu.message_id}`);
+							// sessionLogger.info(`Received response with id ${pdu.message_id}`);
 							success++;
 						} else {
 							sessionLogger.warn(`Message failed with id ${pdu.message_id}`);
@@ -70,6 +73,7 @@ function startInterval(session, sessionLogger) {
 						}
 					}
 				);
+				rxMetrics.AddEvent();
 				sent++;
 				inFlight++;
 			} else {
@@ -93,7 +97,10 @@ const server = smpp.createServer(
 		debug: options.debug,
 	},
 	function (session) {
-		const sessionLogger = createSessionLogger(sessionid++);
+		const id = sessionid++;
+		const sessionLogger = createSessionLogger(id);
+		const rxMetrics = metricManager.AddMetrics(`Session-${id}-RX`);
+		const txMetrics = metricManager.AddMetrics(`Session-${id}-TX`);
 
 		session.on("bind_transceiver", function (pdu) {
 			if (pdu.system_id === options.systemid && pdu.password === options.password) {
@@ -115,7 +122,8 @@ const server = smpp.createServer(
 		});
 		session.on("submit_sm", async function (pdu) {
 			if (!options.dr) {
-				sessionLogger.info("Replying to incoming submit_sm");
+				// sessionLogger.info("Replying to incoming submit_sm");
+				rxMetrics.AddEvent();
 				session.send(pdu.response());
 				return;
 			}
@@ -157,6 +165,7 @@ const server = smpp.createServer(
 			};
 			sessionLogger.info(`Generated DR as ${drMessage}`);
 			session.deliver_sm(DRPdu);
+			txMetrics.AddEvent();
 		});
 
 		session.on("close", function () {

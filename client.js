@@ -39,14 +39,22 @@ let success = 0;
 let failed = 0;
 const sendTimer = new NanoTimer();
 
-function startInterval(session, sessionLogger) {
+function startInterval(session, sessionLogger, metrics) {
+	if (!metrics.progress) {
+		metrics.progress = metricManager.AddMetrics("Send progress", false);
+		metrics.progress.bar.total = options.messagecount;
+		metrics.window = metricManager.AddMetrics("Send window", false);
+		metrics.window.bar.total = options.window;
+	}
 	sendTimer.setInterval(
 		async () => {
 			if (sent >= options.messagecount) {
-				sessionLogger.info(`Finished sending messages success:${success}, failed:${failed}, idling...`);
+				// sessionLogger.info(`Finished sending messages success:${success}, failed:${failed}, idling...`);
 				sendTimer.clearInterval();
 			} else if (inFlight < options.window) {
-				sessionLogger.info(`Sending message ${sent + 1}/${options.messagecount}`);
+				// sessionLogger.info(`Sending message ${sent + 1}/${options.messagecount}`);
+				metrics.progress.bar.increment();
+				metrics.window.bar.increment();
 				session.submit_sm(
 					{
 						source_addr: options.source,
@@ -54,9 +62,10 @@ function startInterval(session, sessionLogger) {
 						short_message: options.message,
 					},
 					function (pdu) {
+						metrics.window.bar.update(metrics.window.bar.value - 1);
 						inFlight--;
 						if (pdu.command_status === 0) {
-							sessionLogger.info(`Received response with id ${pdu.message_id}`);
+							// sessionLogger.info(`Received response with id ${pdu.message_id}`);
 							success++;
 						} else {
 							sessionLogger.warn(`Message failed with id ${pdu.message_id}`);
@@ -64,14 +73,15 @@ function startInterval(session, sessionLogger) {
 						}
 					}
 				);
+				metrics.txMetrics.AddEvent();
 				sent++;
 				inFlight++;
 			} else {
-				sessionLogger.warn(
-					`${inFlight}/${options.window} messages pending, waiting for a reply before sending more`
-				);
+				// sessionLogger.warn(
+				// 	`${inFlight}/${options.window} messages pending, waiting for a reply before sending more`
+				// );
 				sendTimer.clearInterval();
-				setTimeout(() => startInterval(session, sessionLogger), options.windowsleep);
+				setTimeout(() => startInterval(session, sessionLogger, metrics), options.windowsleep);
 			}
 		},
 		"",
@@ -80,15 +90,6 @@ function startInterval(session, sessionLogger) {
 }
 
 const metricManager = new MetricManager();
-// async function main() {
-// 	const test1 = metricManager.AddMetrics("test");
-// 	for (let i = 0; i < 1e5; i++) {
-// 		test1.AddEvent();
-// 		test1.UpdateBar();
-// 		await setTimeout(() => {}, 200);
-// 	}
-// }
-// main();
 
 for (let i = 0; i < options.sessions; i++) {
 	const sessionLogger = createSessionLogger(i);
@@ -115,7 +116,10 @@ for (let i = 0; i < options.sessions; i++) {
 						);
 						const rxMetrics = metricManager.AddMetrics(`Session-${i}-RX`);
 						const txMetrics = metricManager.AddMetrics(`Session-${i}-TX`);
-						startInterval(session, sessionLogger);
+						startInterval(session, sessionLogger, {
+							rxMetrics,
+							txMetrics,
+						});
 						// TODO: Add error message for invalid systemid and password
 
 						session.on("deliver_sm", function (pdu) {
