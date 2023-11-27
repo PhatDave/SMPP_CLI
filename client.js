@@ -128,7 +128,7 @@ for (let i = 0; i < options.sessions; i++) {
 							setTimeout(() => {
 								session.send(pdu.response());
 								txMetrics.AddEvent();
-							}, 2000);
+							}, 200);
 							// session.send(pdu.response());
 							// txMetrics.AddEvent();
 						});

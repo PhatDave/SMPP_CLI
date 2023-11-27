@@ -50,6 +50,12 @@ const clientOptions = [
 		defaultOption: "smpp debug message",
 	},
 	{ name: "debug", type: Boolean, description: "Display all traffic to and from the client; Debug mode." },
+	{ name: "logs", type: Boolean, description: "Write logs (to stdout), defaults to true." },
+	{
+		name: "bars",
+		type: Boolean,
+		description: "Display TX and RX bars. Can be used with logs (although it will make a mess)."
+	},
 ];
 
 const centerOptions = [
@@ -115,6 +121,12 @@ const centerOptions = [
 		defaultOption: "smpp debug message",
 	},
 	{ name: "debug", type: Boolean, description: "Display all traffic to and from the center; Debug mode." },
+	{ name: "logs", type: Boolean, description: "Write logs (to stdout), defaults to true." },
+	{
+		name: "bars",
+		type: Boolean,
+		description: "Display TX and RX bars. Can be used with logs (although it will make a mess)."
+	},
 ];
 
 module.exports = { clientOptions, centerOptions };

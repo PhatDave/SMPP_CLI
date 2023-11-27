@@ -8,8 +8,8 @@ const { centerOptions } = require("./cliOptions");
 const crypto = require("crypto");
 const { MetricManager } = require("./metrics/metricManager");
 
-const logger = createBaseLogger();
 const options = commandLineArgs(centerOptions);
+const logger = createBaseLogger(options);
 
 if (options.help) {
 	const usage = commandLineUsage([
@@ -52,10 +52,10 @@ function startInterval(session, sessionLogger, rxMetrics) {
 	sendTimer.setInterval(
 		async () => {
 			if (sent >= options.messagecount) {
-				// sessionLogger.info(`Finished sending messages success:${success}, failed:${failed}, idling...`);
+				sessionLogger.info(`Finished sending messages success:${success}, failed:${failed}, idling...`);
 				sendTimer.clearInterval();
 			} else if (inFlight < options.window) {
-				// sessionLogger.info(`Sending message ${sent + 1}/${options.messagecount}`);
+				sessionLogger.info(`Sending message ${sent + 1}/${options.messagecount}`);
 				session.deliver_sm(
 					{
 						source_addr: options.source,
@@ -65,7 +65,7 @@ function startInterval(session, sessionLogger, rxMetrics) {
 					function (pdu) {
 						inFlight--;
 						if (pdu.command_status === 0) {
-							// sessionLogger.info(`Received response with id ${pdu.message_id}`);
+							sessionLogger.info(`Received response with id ${pdu.message_id}`);
 							success++;
 						} else {
 							sessionLogger.warn(`Message failed with id ${pdu.message_id}`);
@@ -98,7 +98,7 @@ const server = smpp.createServer(
 	},
 	function (session) {
 		const id = sessionid++;
-		const sessionLogger = createSessionLogger(id);
+		const sessionLogger = createSessionLogger(options, id);
 		const rxMetrics = metricManager.AddMetrics(`Session-${id}-RX`);
 		const txMetrics = metricManager.AddMetrics(`Session-${id}-TX`);
 
@@ -109,7 +109,7 @@ const server = smpp.createServer(
 				startInterval(session, sessionLogger);
 			} else {
 				sessionLogger.warn(
-					`Client tried to connect with incorrect login ('${pdu.system_id}' '${pdu.password}'`
+					`Client tried to connect with incorrect login ('${pdu.system_id}' '${pdu.password}')`
 				);
 				pdu.response({
 					command_status: smpp.ESME_RBINDFAIL,
@@ -124,6 +124,9 @@ const server = smpp.createServer(
 			if (!options.dr) {
 				// sessionLogger.info("Replying to incoming submit_sm");
 				rxMetrics.AddEvent();
+				// setTimeout(() => {
+				// 	session.send(pdu.response());
+				// }, 200);
 				session.send(pdu.response());
 				return;
 			}
@@ -133,7 +136,7 @@ const server = smpp.createServer(
 
 			let smppid = messageid++;
 			if (options.randid) {
-				smppid = crypto.randomBytes(12).toString("hex");
+				smppid = crypto.randomBytes(8).toString("hex");
 			}
 
 			response.message_id = smppid.toString(16);
@@ -187,41 +190,3 @@ server.on("error", function (err) {
 
 server.listen(options.port);
 logger.info(`SMPP Server listening on ${options.port}`);
-// 	{
-// 		url: `smpp://${options.host}:${options.port}`,
-// 		auto_enquire_link_period: 10000,
-// 		debug: options.debug,
-// 	},
-// 	function () {
-// 		logger.info(
-// 			`Connected, sending bind_transciever with systemId '${options.systemid}' and password '${options.password}'...`
-// 		);
-// 		session.bind_transceiver(
-// 			{
-// 				system_id: options.systemid,
-// 				password: options.password,
-// 			},
-// 			function (pdu) {
-// 				if (pdu.command_status === 0) {
-// 					logger.info(
-// 						`Successfully bound, sending ${options.messagecount} messages '${options.source}'->'${options.destination}' ('${options.message}')`
-// 					);
-// 					startInterval(session);
-
-// 					session.on("deliver_sm", function (pdu) {
-// 						logger.info("Got deliver_sm, replying...");
-// 						session.send(pdu.response());
-// 					});
-// 					session.on("close", function () {
-// 						logger.error(`Session closed`);
-// 						process.exit(1);
-// 					});
-// 					session.on("error", function (err) {
-// 						logger.error(`Fatal error ${err}`);
-// 						process.exit(1);
-// 					});
-// 				}
-// 			}
-// 		);
-// 	}
-// );

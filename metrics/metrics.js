@@ -5,6 +5,7 @@ class Metric {
 		this.multibar = multibar;
 		this.bar = multibar.create(0, 0);
 		this.bar.update(0, { name: barName });
+		this.bar.total = 1000;
 		this.buffer = new CircularBuffer(bufferSize);
 		this.maxRate = 0;
 		if (refresh) {
@@ -29,10 +30,10 @@ class Metric {
 
 	UpdateBar() {
 		const eps = this.GetRate();
-		if (eps > this.maxRate) {
-			this.bar.total = eps;
-			this.maxRate = eps;
-		}
+		// if (eps > this.maxRate) {
+		// 	this.bar.total = eps;
+		// 	this.maxRate = eps;
+		// }
 		this.bar.update(eps);
 	}
 }
