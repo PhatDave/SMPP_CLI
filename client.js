@@ -7,8 +7,8 @@ const { verifyDefaults, verifyExists } = require("./utils");
 const { clientOptions } = require("./cliOptions");
 const { MetricManager } = require("./metrics/metricManager");
 
-const logger = createBaseLogger();
 const options = commandLineArgs(clientOptions);
+const logger = createBaseLogger(options);
 
 if (options.help) {
 	const usage = commandLineUsage([
@@ -40,7 +40,7 @@ let failed = 0;
 const sendTimer = new NanoTimer();
 
 function startInterval(session, sessionLogger, metrics) {
-	if (!metrics.progress) {
+	if (!metrics.progress && options.bars === true) {
 		metrics.progress = metricManager.AddMetrics("Send progress", false);
 		metrics.progress.bar.total = options.messagecount;
 		metrics.window = metricManager.AddMetrics("Send window", false);
@@ -49,12 +49,14 @@ function startInterval(session, sessionLogger, metrics) {
 	sendTimer.setInterval(
 		async () => {
 			if (sent >= options.messagecount) {
-				// sessionLogger.info(`Finished sending messages success:${success}, failed:${failed}, idling...`);
+				sessionLogger.info(`Finished sending messages success:${success}, failed:${failed}, idling...`);
 				sendTimer.clearInterval();
 			} else if (inFlight < options.window) {
-				// sessionLogger.info(`Sending message ${sent + 1}/${options.messagecount}`);
-				metrics.progress.bar.increment();
-				metrics.window.bar.increment();
+				sessionLogger.info(`Sending message ${sent + 1}/${options.messagecount}`);
+				if (options.bars) {
+					metrics.progress.bar.increment();
+					metrics.window.bar.increment();
+				}
 				session.submit_sm(
 					{
 						source_addr: options.source,
@@ -62,10 +64,12 @@ function startInterval(session, sessionLogger, metrics) {
 						short_message: options.message,
 					},
 					function (pdu) {
-						metrics.window.bar.update(metrics.window.bar.value - 1);
+						if (metrics.window?.bar) {
+							metrics.window.bar.update(metrics.window.bar.value - 1);
+						}
 						inFlight--;
 						if (pdu.command_status === 0) {
-							// sessionLogger.info(`Received response with id ${pdu.message_id}`);
+							sessionLogger.info(`Received response with id ${pdu.message_id}`);
 							success++;
 						} else {
 							sessionLogger.warn(`Message failed with id ${pdu.message_id}`);
@@ -73,13 +77,15 @@ function startInterval(session, sessionLogger, metrics) {
 						}
 					}
 				);
-				metrics.txMetrics.AddEvent();
+				if (metrics.txMetrics) {
+					metrics.txMetrics.AddEvent();
+				}
 				sent++;
 				inFlight++;
 			} else {
-				// sessionLogger.warn(
-				// 	`${inFlight}/${options.window} messages pending, waiting for a reply before sending more`
-				// );
+				sessionLogger.warn(
+					`${inFlight}/${options.window} messages pending, waiting for a reply before sending more`
+				);
 				sendTimer.clearInterval();
 				setTimeout(() => startInterval(session, sessionLogger, metrics), options.windowsleep);
 			}
@@ -89,10 +95,10 @@ function startInterval(session, sessionLogger, metrics) {
 	);
 }
 
-const metricManager = new MetricManager();
+const metricManager = new MetricManager(options);
 
 for (let i = 0; i < options.sessions; i++) {
-	const sessionLogger = createSessionLogger(i);
+	const sessionLogger = createSessionLogger(options, i);
 	sessionLogger.info(`Connecting to ${options.host}:${options.port}...`);
 	const session = smpp.connect(
 		{
@@ -123,14 +129,18 @@ for (let i = 0; i < options.sessions; i++) {
 						// TODO: Add error message for invalid systemid and password
 
 						session.on("deliver_sm", function (pdu) {
-							rxMetrics.AddEvent();
-							// sessionLogger.info("Got deliver_sm, replying...");
-							setTimeout(() => {
-								session.send(pdu.response());
+							if (rxMetrics) {
+								rxMetrics.AddEvent();
+							}
+							sessionLogger.info("Got deliver_sm, replying...");
+							// setTimeout(() => {
+							// 	session.send(pdu.response());
+							// 	txMetrics.AddEvent();
+							// }, 200);
+							session.send(pdu.response());
+							if (txMetrics) {
 								txMetrics.AddEvent();
-							}, 200);
-							// session.send(pdu.response());
-							// txMetrics.AddEvent();
+							}
 						});
 						session.on("enquire_link", function (pdu) {
 							session.send(pdu.response());

@@ -28,7 +28,7 @@ if (options.help) {
 	process.exit(0);
 }
 
-const metricManager = new MetricManager();
+const metricManager = new MetricManager(options);
 
 verifyDefaults(options, centerOptions);
 verifyExists(options.port, "Port can not be undefined or empty! (--port)", logger);
@@ -122,7 +122,7 @@ const server = smpp.createServer(
 		});
 		session.on("submit_sm", async function (pdu) {
 			if (!options.dr) {
-				// sessionLogger.info("Replying to incoming submit_sm");
+				sessionLogger.info("Replying to incoming submit_sm");
 				rxMetrics.AddEvent();
 				// setTimeout(() => {
 				// 	session.send(pdu.response());
@@ -168,7 +168,9 @@ const server = smpp.createServer(
 			};
 			sessionLogger.info(`Generated DR as ${drMessage}`);
 			session.deliver_sm(DRPdu);
-			txMetrics.AddEvent();
+			if (txMetrics) {
+				txMetrics.AddEvent();
+			}
 		});
 
 		session.on("close", function () {
