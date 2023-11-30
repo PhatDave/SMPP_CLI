@@ -6,7 +6,7 @@ class Metric {
 		this.multibar = multibar;
 		this.bar = multibar.create(0, 0);
 		this.bar.update(0, { name: barName });
-		this.maxRate = 1000;
+		this.maxRate = this.options.defaultmaxrate;
 		this.bar.total = this.maxRate;
 		this.buffer = new CircularBuffer(bufferSize);
 		if (refresh) {

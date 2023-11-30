@@ -60,7 +60,13 @@ const clientOptions = [
 		name: "metricsinterval",
 		type: Number,
 		defaultOption: 5,
-		description: "Sets the interval for measuring metrics. A value of 5 considers the packets within the last 5 seconds. Defaults to 5."
+		description: "Interval for measuring metrics. A value of 5 considers the packets within the last 5 seconds. Defaults to 5."
+	},
+	{
+		name: "defaultmaxrate",
+		type: Number,
+		defaultOption: 1000,
+		description: "Default max rate for metrics/bars."
 	},
 ];
 
@@ -137,7 +143,13 @@ const centerOptions = [
 		name: "metricsinterval",
 		type: Number,
 		defaultOption: 5,
-		description: "Sets the interval for measuring metrics. A value of 5 considers the packets within the last 5 seconds. Defaults to 5."
+		description: "Interval for measuring metrics. A value of 5 considers the packets within the last 5 seconds. Defaults to 5."
+	},
+	{
+		name: "defaultmaxrate",
+		type: Number,
+		defaultOption: 1000,
+		description: "Default max rate for metrics/bars."
 	},
 ];
 
