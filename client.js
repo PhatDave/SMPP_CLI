@@ -38,6 +38,7 @@ let sent = 0;
 let success = 0;
 let failed = 0;
 const sendTimer = new NanoTimer();
+const metricManager = new MetricManager(options);
 
 function startInterval(session, sessionLogger, metrics) {
 	if (!metrics.progress && options.bars === true) {
@@ -94,8 +95,6 @@ function startInterval(session, sessionLogger, metrics) {
 		`${1 / options.mps} s`
 	);
 }
-
-const metricManager = new MetricManager(options);
 
 for (let i = 0; i < options.sessions; i++) {
 	const sessionLogger = createSessionLogger(options, i);

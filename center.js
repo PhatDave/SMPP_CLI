@@ -28,7 +28,6 @@ if (options.help) {
 	process.exit(0);
 }
 
-const metricManager = new MetricManager(options);
 
 verifyDefaults(options, centerOptions);
 verifyExists(options.port, "Port can not be undefined or empty! (--port)", logger);
@@ -40,6 +39,7 @@ let sent = 0;
 let success = 0;
 let failed = 0;
 const sendTimer = new NanoTimer();
+const metricManager = new MetricManager(options);
 
 // TODO: Fix issue where a client disconnecting does not stop this timer
 // TODO: Fix issue where only one session is being utilized because they all share the same timer
@@ -104,6 +104,36 @@ const server = smpp.createServer(
 		const txMetrics = metricManager.AddMetrics(`Session-${id}-TX`);
 
 		session.on("bind_transceiver", function (pdu) {
+			if (pdu.system_id === options.systemid && pdu.password === options.password) {
+				sessionLogger.info("Client connected");
+				session.send(pdu.response());
+				startInterval(session, sessionLogger);
+			} else {
+				sessionLogger.warn(
+					`Client tried to connect with incorrect login ('${pdu.system_id}' '${pdu.password}')`
+				);
+				pdu.response({
+					command_status: smpp.ESME_RBINDFAIL,
+				});
+				session.close();
+			}
+		});
+		session.on("bind_transmitter", function (pdu) {
+			if (pdu.system_id === options.systemid && pdu.password === options.password) {
+				sessionLogger.info("Client connected");
+				session.send(pdu.response());
+				startInterval(session, sessionLogger);
+			} else {
+				sessionLogger.warn(
+					`Client tried to connect with incorrect login ('${pdu.system_id}' '${pdu.password}')`
+				);
+				pdu.response({
+					command_status: smpp.ESME_RBINDFAIL,
+				});
+				session.close();
+			}
+		});
+		session.on("bind_receiver", function (pdu) {
 			if (pdu.system_id === options.systemid && pdu.password === options.password) {
 				sessionLogger.info("Client connected");
 				session.send(pdu.response());
