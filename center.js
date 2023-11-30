@@ -43,6 +43,7 @@ const sendTimer = new NanoTimer();
 
 // TODO: Fix issue where a client disconnecting does not stop this timer
 // TODO: Fix issue where only one session is being utilized because they all share the same timer
+// TODO: Maybe add only receiver and only transmitter modes instead of transciever
 // Instead just use the same timer but make a pool of connections; That way both problems will be solved
 function startInterval(session, sessionLogger, rxMetrics) {
 	if (!options.messagecount > 0) {
@@ -123,7 +124,9 @@ const server = smpp.createServer(
 		session.on("submit_sm", async function (pdu) {
 			if (!options.dr) {
 				sessionLogger.info("Replying to incoming submit_sm");
-				rxMetrics.AddEvent();
+				if (options.bars) {
+					rxMetrics.AddEvent();	
+				}
 				// setTimeout(() => {
 				// 	session.send(pdu.response());
 				// }, 200);

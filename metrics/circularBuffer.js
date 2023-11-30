@@ -25,6 +25,22 @@ class CircularBuffer {
 		}
 		return result;
 	}
+
+	toArrayRecent(n = 10) {
+		const result = [];
+		const threshold = Date.now() - n * 1000;
+
+		let current = (this.head - 1 + this.size) % this.size;
+		while (current !== this.tail) {
+			if (this.buffer[current] !== undefined && this.buffer[current].timestamp > threshold) {
+				result.push(this.buffer[current]);
+			} else {
+				break;
+			}
+			current = (current - 1 + this.size) % this.size;
+		}
+		return result;
+	}
 }
 
 module.exports = { CircularBuffer };

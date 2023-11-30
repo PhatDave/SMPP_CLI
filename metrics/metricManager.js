@@ -15,13 +15,13 @@ class MetricManager {
 				},
 				cliProgress.Presets.shades_grey
 			);
-			setInterval(() => this.multibar.update(), 100);
+			setInterval(() => this.multibar.update(), 200);
 		}
 	}
 
 	AddMetrics(name, refresh = true) {
 		if (this.options.bars) {
-			const metric = new Metric(name, this.multibar, this.metricBufferSize, refresh);
+			const metric = new Metric(name, this.multibar, this.metricBufferSize, this.options, refresh);
 			return metric;
 		}
 	}

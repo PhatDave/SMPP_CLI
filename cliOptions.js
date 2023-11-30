@@ -56,6 +56,12 @@ const clientOptions = [
 		type: Boolean,
 		description: "Display TX and RX bars. Can be used with logs (although it will make a mess)."
 	},
+	{
+		name: "metricsinterval",
+		type: Number,
+		defaultOption: 5,
+		description: "Sets the interval for measuring metrics. A value of 5 considers the packets within the last 5 seconds. Defaults to 5."
+	},
 ];
 
 const centerOptions = [
@@ -126,6 +132,12 @@ const centerOptions = [
 		name: "bars",
 		type: Boolean,
 		description: "Display TX and RX bars. Can be used with logs (although it will make a mess)."
+	},
+	{
+		name: "metricsinterval",
+		type: Number,
+		defaultOption: 5,
+		description: "Sets the interval for measuring metrics. A value of 5 considers the packets within the last 5 seconds. Defaults to 5."
 	},
 ];
 
