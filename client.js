@@ -125,7 +125,6 @@ for (let i = 0; i < options.sessions; i++) {
 							rxMetrics,
 							txMetrics,
 						});
-						// TODO: Add error message for invalid systemid and password
 
 						session.on("deliver_sm", function (pdu) {
 							if (rxMetrics) {
@@ -152,6 +151,9 @@ for (let i = 0; i < options.sessions; i++) {
 							sessionLogger.error(`Fatal error ${err}`);
 							process.exit(1);
 						});
+					} else {
+						sessionLogger.error(`Failed to bind, status ${pdu.command_status}`);
+						process.exit(1);
 					}
 				}
 			);
