@@ -64,7 +64,7 @@ function startInterval(session, sessionLogger, metrics) {
 					short_message: options.message,
 				});
 
-				sendPdu(session, pdu)
+				sendPdu(session, pdu, sessionLogger, options.longsms)
 					.then((resp) => {
 						inFlight--;
 						sessionLogger.info(`Received response with id ${resp.message_id}`);

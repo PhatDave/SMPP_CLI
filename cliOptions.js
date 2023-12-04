@@ -68,6 +68,11 @@ const clientOptions = [
 		defaultOption: 1000,
 		description: "Default max rate for metrics/bars."
 	},
+	{
+		name: "longsms",
+		type: Boolean,
+		description: "Split messages into multiple parts. Applies only if message is too big for one packet."
+	},
 ];
 
 const centerOptions = [
@@ -150,6 +155,11 @@ const centerOptions = [
 		type: Number,
 		defaultOption: 1000,
 		description: "Default max rate for metrics/bars."
+	},
+	{
+		name: "longsms",
+		type: Boolean,
+		description: "Split messages into multiple parts. Applies only if message is too big for one packet."
 	},
 ];
 
