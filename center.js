@@ -28,7 +28,6 @@ if (options.help) {
 	process.exit(0);
 }
 
-
 verifyDefaults(options, centerOptions);
 verifyExists(options.port, "Port can not be undefined or empty! (--port)", logger);
 verifyExists(options.systemid, "SystemID can not be undefined or empty! (--systemid)", logger);
@@ -63,15 +62,17 @@ function startInterval(session, sessionLogger, rxMetrics) {
 					short_message: options.message,
 				});
 
-				sendPdu(session, pdu).then(resp => {
-					inFlight--;
-					sessionLogger.info(`Received response with id ${resp.message_id}`);
-					success++;
-				}).catch(resp => {
-					inFlight--;
-					sessionLogger.warn(`Message failed with id ${resp.message_id}`);
-					failed++;
-				});
+				sendPdu(session, pdu, sessionLogger, options.longsms)
+					.then((resp) => {
+						inFlight--;
+						sessionLogger.info(`Received response with id ${resp.message_id}`);
+						success++;
+					})
+					.catch((resp) => {
+						inFlight--;
+						sessionLogger.warn(`Message failed with id ${resp.message_id}`);
+						failed++;
+					});
 
 				rxMetrics.AddEvent();
 				sent++;
@@ -154,7 +155,7 @@ const server = smpp.createServer(
 			if (!options.dr) {
 				sessionLogger.info("Replying to incoming submit_sm");
 				if (options.bars) {
-					rxMetrics.AddEvent();	
+					rxMetrics.AddEvent();
 				}
 				// setTimeout(() => {
 				// 	session.send(pdu.response());
