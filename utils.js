@@ -14,4 +14,16 @@ function verifyDefaults(options, definitions) {
 	}
 }
 
-module.exports = { verifyDefaults, verifyExists };
+async function sendPdu(session, pdu) {
+	return new Promise((resolve, reject) => {
+		session.send(pdu, (respPdu) => {
+			if (respPdu.command_status === 0) {
+				resolve(respPdu);
+			} else {
+				reject(respPdu);
+			}
+		});
+	});
+}
+
+module.exports = { verifyDefaults, verifyExists, sendPdu };

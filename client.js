@@ -3,7 +3,7 @@ const commandLineArgs = require("command-line-args");
 const commandLineUsage = require("command-line-usage");
 const NanoTimer = require("nanotimer");
 const { createBaseLogger, createSessionLogger } = require("./logger");
-const { verifyDefaults, verifyExists } = require("./utils");
+const { verifyDefaults, verifyExists, sendPdu } = require("./utils");
 const { clientOptions } = require("./cliOptions");
 const { MetricManager } = require("./metrics/metricManager");
 
@@ -58,26 +58,24 @@ function startInterval(session, sessionLogger, metrics) {
 					metrics.progress.bar.increment();
 					metrics.window.bar.increment();
 				}
-				session.submit_sm(
-					{
-						source_addr: options.source,
-						destination_addr: options.destination,
-						short_message: options.message,
-					},
-					function (pdu) {
-						if (metrics.window?.bar) {
-							metrics.window.bar.update(metrics.window.bar.value - 1);
-						}
+				const pdu = new smpp.PDU("submit_sm", {
+					source_addr: options.source,
+					destination_addr: options.destination,
+					short_message: options.message,
+				});
+
+				sendPdu(session, pdu)
+					.then((resp) => {
 						inFlight--;
-						if (pdu.command_status === 0) {
-							sessionLogger.info(`Received response with id ${pdu.message_id}`);
-							success++;
-						} else {
-							sessionLogger.warn(`Message failed with id ${pdu.message_id}`);
-							failed++;
-						}
-					}
-				);
+						sessionLogger.info(`Received response with id ${resp.message_id}`);
+						success++;
+					})
+					.catch((resp) => {
+						inFlight--;
+						sessionLogger.warn(`Message failed with id ${resp.message_id}`);
+						failed++;
+					});
+
 				if (metrics.txMetrics) {
 					metrics.txMetrics.AddEvent();
 				}
