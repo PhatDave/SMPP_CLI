@@ -107,6 +107,10 @@ for (let i = 0; i < options.sessions; i++) {
 			sessionLogger.info(
 				`Connected, sending bind_transciever with systemId '${options.systemid}' and password '${options.password}'...`
 			);
+			session.on('close', function () {
+				sessionLogger.error(`Session closed`);
+				process.exit(1);
+			});
 			session.bind_transceiver(
 				{
 					system_id: options.systemid,

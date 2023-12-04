@@ -89,7 +89,6 @@ async function sendPdu(session, pdu, logger, uselongsms) {
 			}
 		} else {
 			session.send(pdu, (respPdu) => {
-				console.log(respPdu);
 				if (respPdu.command_status === 0) {
 					resolve(respPdu);
 				} else {
