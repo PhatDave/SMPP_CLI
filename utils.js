@@ -36,7 +36,7 @@ function getCharacterSizeForEncoding(pdu) {
 	return characterSizeBits;
 }
 
-const maxMessageSizeBits = 1072;
+const maxMessageSizeBits = 1120;
 function splitToParts(pdu) {
 	const charSize = getCharacterSizeForEncoding(pdu);
 	const maxMessageLength = maxMessageSizeBits / charSize;
@@ -99,4 +99,4 @@ async function sendPdu(session, pdu, logger, uselongsms) {
 	});
 }
 
-module.exports = { verifyDefaults, verifyExists, sendPdu };
+module.exports = { verifyDefaults, verifyExists, sendPdu, splitToParts, getCharacterSizeForEncoding };
