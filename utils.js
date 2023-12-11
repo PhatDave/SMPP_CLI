@@ -44,13 +44,12 @@ function splitToParts(pdu) {
 	const splitMessage = [];
 	const message = pdu.short_message;
 	const messageLength = message.length;
-	const messageCount = Math.ceil(messageLength / maxMessageLength);
+	const messageCount = (messageLength / maxMessageLength) | 0;
 	for (let i = 0; i < messageCount; i++) {
-		splitMessage.push(message.substr(i * maxMessageLength, maxMessageLength));
+		splitMessage.push(message.slice(i * maxMessageLength, i * maxMessageLength + maxMessageLength));
 	}
 
-	const pdus = [];
-	splitMessage.forEach((messagePart, index) => {
+	const pdus = splitMessage.map((messagePart, index) => {
 		let udh = Buffer.from([0x05, 0x00, 0x03, this.iterator++, messageCount, index + 1]);
 
 		let partPdu = new smpp.PDU(pdu.command, { ...pdu });
@@ -58,7 +57,7 @@ function splitToParts(pdu) {
 			udh: udh,
 			message: messagePart,
 		};
-		pdus.push(partPdu);
+		return partPdu;
 	});
 	return pdus;
 }
@@ -72,21 +71,24 @@ async function sendPdu(session, pdu, logger, uselongsms) {
 			const total = pdus.length;
 			let success = 0;
 			let failed = 0;
-			for (const pdu of pdus) {
-				session.send(pdu, (respPdu) => {
-					if (respPdu.command_status === 0) {
-						success++;
-						if (success + failed === total) {
+			const promises = pdus.map((pdu) => {
+				return new Promise((resolve, reject) => {
+					session.send(pdu, (respPdu) => {
+						if (respPdu.command_status === 0) {
 							resolve(respPdu);
-						}
-					} else {
-						failed++;
-						if (success + failed === total) {
+						} else {
 							reject(respPdu);
 						}
-					}
+					});
 				});
-			}
+			});
+			Promise.all(promises)
+				.then((responses) => {
+					resolve(responses[0]);
+				})
+				.catch((error) => {
+					reject(error);
+				});
 		} else {
 			session.send(pdu, (respPdu) => {
 				if (respPdu.command_status === 0) {
