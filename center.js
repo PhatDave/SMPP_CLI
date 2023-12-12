@@ -40,15 +40,17 @@ let failed = 0;
 const sendTimer = new NanoTimer();
 const metricManager = new MetricManager(options);
 
-// TODO: Fix issue where a client disconnecting does not stop this timer
+// TODO: Currently bars are broken
+// A major rework will need to happen before bars are able to play nice with multiple sessions
 // TODO: Fix issue where only one session is being utilized because they all share the same timer
 // TODO: Maybe add only receiver and only transmitter modes instead of transciever
 // Instead just use the same timer but make a pool of connections; That way both problems will be solved
-function startInterval(session, sessionLogger, rxMetrics) {
+function startInterval(sessions, sessionLogger, rxMetrics) {
 	if (!options.messagecount > 0) {
 		sessionLogger.info("No messages to send");
 		return;
 	}
+	let sessionPointer = 0;
 	sendTimer.setInterval(
 		async () => {
 			if (sent >= options.messagecount) {
@@ -62,7 +64,10 @@ function startInterval(session, sessionLogger, rxMetrics) {
 					short_message: options.message,
 				});
 
-				sendPdu(session, pdu, sessionLogger, options.longsms)
+				if (sessionPointer >= sessions.length) {
+					sessionPointer = 0;
+				}
+				sendPdu(sessions[sessionPointer++], pdu, sessionLogger, options.longsms)
 					.then((resp) => {
 						inFlight--;
 						sessionLogger.info(`Received response with id ${resp.message_id}`);
@@ -73,10 +78,6 @@ function startInterval(session, sessionLogger, rxMetrics) {
 						sessionLogger.warn(`Message failed with id ${resp.message_id}`);
 						failed++;
 					});
-
-				if (rxMetrics) {
-					rxMetrics.AddEvent();
-				}
 				sent++;
 				inFlight++;
 			} else {
@@ -84,7 +85,7 @@ function startInterval(session, sessionLogger, rxMetrics) {
 					`${inFlight}/${options.window} messages pending, waiting for a reply before sending more`
 				);
 				sendTimer.clearInterval();
-				setTimeout(() => startInterval(session, sessionLogger), options.windowsleep);
+				setTimeout(() => startInterval(sessions, sessionLogger), options.windowsleep);
 			}
 		},
 		"",
@@ -111,7 +112,7 @@ const server = smpp.createServer(
 				sessions.push(session);
 				sessionLogger.info(`Client connected, currently: ${sessions.length}`);
 				session.send(pdu.response());
-				startInterval(session, sessionLogger);
+				startInterval(sessions, sessionLogger);
 			} else {
 				sessionLogger.warn(
 					`Client tried to connect with incorrect login ('${pdu.system_id}' '${pdu.password}')`
@@ -126,7 +127,7 @@ const server = smpp.createServer(
 			if (pdu.system_id === options.systemid && pdu.password === options.password) {
 				sessionLogger.info("Client connected");
 				session.send(pdu.response());
-				startInterval(session, sessionLogger);
+				startInterval(session, sessionLogger, rxMetrics);
 			} else {
 				sessionLogger.warn(
 					`Client tried to connect with incorrect login ('${pdu.system_id}' '${pdu.password}')`
