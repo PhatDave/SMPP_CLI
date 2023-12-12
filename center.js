@@ -74,7 +74,9 @@ function startInterval(session, sessionLogger, rxMetrics) {
 						failed++;
 					});
 
-				rxMetrics.AddEvent();
+				if (rxMetrics) {
+					rxMetrics.AddEvent();
+				}
 				sent++;
 				inFlight++;
 			} else {
@@ -93,6 +95,7 @@ function startInterval(session, sessionLogger, rxMetrics) {
 logger.info(`Staring server on port ${options.port}...`);
 let sessionid = 1;
 let messageid = 0;
+const sessions = [];
 const server = smpp.createServer(
 	{
 		debug: options.debug,
@@ -105,7 +108,8 @@ const server = smpp.createServer(
 
 		session.on("bind_transceiver", function (pdu) {
 			if (pdu.system_id === options.systemid && pdu.password === options.password) {
-				sessionLogger.info("Client connected");
+				sessions.push(session);
+				sessionLogger.info(`Client connected, currently: ${sessions.length}`);
 				session.send(pdu.response());
 				startInterval(session, sessionLogger);
 			} else {
@@ -207,8 +211,13 @@ const server = smpp.createServer(
 		});
 
 		session.on("close", function () {
-			sessionLogger.warn(`Session closed`);
+			sessions.splice(sessions.indexOf(session), 1);
+			sessionLogger.warn(`Session closed, now ${sessions.length}`);
 			session.close();
+			if (sessions.length === 0) {
+				sessionLogger.info("No more sessions, stopping sending timer");
+				sendTimer.clearInterval();
+			}
 		});
 		session.on("error", function (err) {
 			sessionLogger.error(`Fatal error ${err}`);
